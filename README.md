@@ -3,6 +3,8 @@ Three separate Computer Vision Trackers developed using OpenCV 4.5.2 are run and
 
 Input Source can be a video or image frames. The choice of Source is selectable in the Command Console upon code execution.
 
+Gnuplot is used to plot the relative performances of the three trackers. Make sure to include it in Environment Variables in case plotting of results is requried.
+
 ## 1. MOSSE TRACKER
 ### Based on: 
 Bolme, David. Beveridge, J. Drapper, Bruce and Lui Yui. Visual Object Tracking using Adaptive Correlatio Filters. CVPR, 2010. 
