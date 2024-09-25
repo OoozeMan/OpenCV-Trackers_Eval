@@ -768,9 +768,9 @@ void STAPLE_TRACKER::tracker_staple_train(const cv::Mat &im, bool first)
     std::vector<cv::Mat> xtsplit;
     std::vector<cv::Mat> xtf; // xtf is splits of xtf
     matsplit(xt, xtsplit);
-    cv::cuda::GpuMat in_im_gpu, fft_im;
-    in_im_gpu.create(xt.size(), CV_32F);
-    fft_im.create(xt.size(), CV_32F);
+    //cv::cuda::GpuMat in_im_gpu, fft_im;
+    //in_im_gpu.create(xt.size(), CV_32F);
+    //fft_im.create(xt.size(), CV_32F);
     int64 tic = 0, toc = 0;
 
     //Computing FFT via CPU
