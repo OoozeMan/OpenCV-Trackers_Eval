@@ -73,6 +73,15 @@ Tracker_MOSSE::~Tracker_MOSSE()
 
 }
 
+//void Tracker_MOSSE::InitTracker(const Mat &input_image, QPoint topLeft, QPoint bottomRight)
+//{//Init tracker from user selection
+//
+//    this->InitTracker(input_image,
+//                      Rect(topLeft.x(), topLeft.y(),
+//                           bottomRight.x() - topLeft.x(),
+//                           bottomRight.y() - topLeft.y()));
+//
+//}
 
 void Tracker_MOSSE::InitTracker(const Mat &input_image, Rect input_rect, Rect curr_roi)
 {//Init tracker from user selection
@@ -89,13 +98,22 @@ void Tracker_MOSSE::InitTracker(const Mat &input_image, Rect input_rect, Rect cu
     this->_im_size.width = input_image.cols;
     this->_im_size.height = input_image.rows;
 
+    //input_image(input_rect).copyTo(prev_img.real_image);  //Store frame as previous frame
     prev_img.real_image = input_image(input_rect).clone();
+
+    //if (occlusion_flag_ssd == false)
+    //    this->blended_template = prev_img.real_image.clone();
 
     this->prev_img.cols = this->prev_img.real_image.cols;
     this->prev_img.rows = this->prev_img.real_image.rows;
 
     ComputeDFT(this->prev_img, true); //Compute Direct Fourier Transform
+   // SetRoi(input_rect);               //User selection is object current pos
     SetRoi(curr_roi);
+
+    Canny(this->prev_img.real_image, contours, 40, 150);
+    this->Canny_score_orig = sum(contours)[0] / 1000;
+    //cout << "Original Edge score " << this->Canny_score_orig << endl;
     
     InitFilter();                     //Init filter from ROI (ROI + affine transf)
 
@@ -125,8 +143,18 @@ void Tracker_MOSSE::Track(const Mat &input_image)
 
     Point new_loc;
     Mat input_image_cpy = input_image.clone();
+    //input_image(this->current_ROI.ROI).copyTo(this->current_img.real_image);    //Crop new search area
+
+    /// Testing ////////////
+   
+    if (frame_id > 50)
+    {
+        int frame_id_mod = (frame_id - 50) % history_limit;
+        input_image_cpy = Hist[frame_id_mod].frame;
+    }
 
     this->current_img.real_image = input_image(this->current_ROI.ROI).clone(); //Original
+    //this->current_img.real_image = input_image_cpy(this->current_ROI.ROI).clone();
     ComputeDFT(this->current_img, true);                    //Compute Direct Fourier Transform
 
     new_loc = PerformTrack();                                                   //Perform tracking
@@ -135,9 +163,35 @@ void Tracker_MOSSE::Track(const Mat &input_image)
     {
         this->state_ = FOUND;
         Update(new_loc);                                                        //Update Tracker
+        //cout << "Location points " << new_loc << endl;
+
+
+        //Point track_location = { new_loc.x , new_loc.y };
+        //track_location.x += this->current_ROI.ROI.x;
+        //track_location.y += this->current_ROI.ROI.y;
+        //rectangle(input_image_cpy, this->current_ROI.ROI, Scalar(255, 0, 0), 2, 1, 0);
+        //drawMarker(input_image_cpy, track_location, Scalar(255, 0, 0), MARKER_CROSS, 50, 2, 8);
+        //putText(input_image_cpy, "PSR Value= " + to_string(this->PSR_value), Point(10, 70), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+        //imshow("Updated Tracking", input_image_cpy);
     } 
     else
     {
+        //cout << "Location points " << new_loc << endl;
+
+        
+        /*cen_x = this->current_ROI.ROI.x + this->current_ROI.ROI.width/2;
+        cen_y = this->current_ROI.ROI.y + this->current_ROI.ROI.height/2;
+        Point centroid = { cen_x, cen_y };
+
+        drawMarker(input_image_cpy, centroid, Scalar(255, 0, 0), MARKER_TILTED_CROSS, 50, 2, 8);
+
+        if (new_loc.x == - 1 && new_loc.y == -1 )
+            putText(input_image_cpy, "Object Occluded", Point(10, 50),FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+
+        else if (new_loc.x == -2 && new_loc.y == -2)
+            putText(input_image_cpy, "Object Lost", Point(10, 50), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+
+        imshow("Updated Tracking", input_image_cpy);*/
         this->state_ = OCCLUDED;
     }
 
@@ -257,6 +311,8 @@ Point Tracker_MOSSE::PerformTrack()
     // Filter image
     Mat filtImg, filtImg_old;
     dft(this->_filter, filtImg, DFT_INVERSE | DFT_REAL_OUTPUT); //
+    //dft(this->_filterOld, filtImg_old, DFT_INVERSE | DFT_REAL_OUTPUT);
+    // Shifting the image!!
     int cx = filtImg.cols/2;
     int cy = filtImg.rows/2;
     Mat q0(filtImg, Rect(0, 0, cx, cy));   // Top-Left - Create a ROI per quadrant
@@ -275,10 +331,20 @@ Point Tracker_MOSSE::PerformTrack()
     resize(filtImg, filtImg, cv::Size(136,79)); // not taking into account a resized window!
     flip(filtImg,filtImg,0);
 
+    //normalize(filtImg_old, filtImg_old, 0.0, 1.0, NORM_MINMAX);
+    //resize(filtImg_old, filtImg_old, cv::Size(136, 79)); // not taking into account a resized window!
+    //flip(filtImg_old, filtImg_old, 0);
+
     // Input image
     cv::Mat input_;
     this->current_img.real_image.copyTo(input_);
     cv::resize(input_, input_, cv::Size(136,79));
+
+    //imshow("Filter Image", filtImg);
+    //imshow("Old Filter Image", filtImg_old);
+    //imshow("Correlation Image", corrImg);
+
+    //cout << "Filters SSD Score " << calculate_ssd(filtImg, filtImg_old) << endl;
 
     //emit newCorrelationImage(CImage::getQImage(corrImg));
     //emit newFilterImage(CImage::getQImage(filtImg));
@@ -287,11 +353,15 @@ Point Tracker_MOSSE::PerformTrack()
     // ***************************************************************************************************
 
     PSR_val = ComputePSR(idft_correlation);  //Compute PSR
+
     PSR_val_old = ComputePSR(idft_correlation_old);  //Compute PSR against original filter
 
+    //cout << "PSR Occlusion Detector " << PSR_val_old << endl;
 
     if ((PSR_val_old <= PSR_ratio[1]) || (PSR_val_old < PSR_ratio[0]))
+    //if ((PSR_val_old <= 5))
     {
+        //cout << "Entering Occlusion " << this->Occlusion_cnt << " PSR old value " << PSR_val_old <<  endl;
         this->Occlusion_cnt++;
         this->tracking_cnt = 0;
     }
@@ -299,6 +369,7 @@ Point Tracker_MOSSE::PerformTrack()
     {       
         this->Occlusion_cnt = 0;
         this->tracking_cnt++;
+        //cout << " PSR old value " << PSR_val_old << " Tracking count " << this->tracking_cnt <<  endl;
     }
 
     int tracking_mod = this->tracking_cnt % 150;
@@ -306,10 +377,13 @@ Point Tracker_MOSSE::PerformTrack()
     if (tracking_mod == 1) //Update filter after every x-frames
     {
         this->_filterOld = this->_filter.clone();
+        //cout << "Old Filter updated" << endl;
     }
 
     this->PSR_value = PSR_val;
     this->PSR_value_old = PSR_val_old;
+
+    //cout << "PSR Value old " << PSR_val_old << endl;
 
     if (PSR_val >= PSR_ratio[1])    //Get new pos if object detected
         {
@@ -361,10 +435,16 @@ float Tracker_MOSSE::ComputePSR(const Mat &correlation_mat)
         mini_roi.height = PSR_mask.rows - mini_roi.y;
     }
 
+    //Mat temp = PSR_mask(mini_roi);
+    //temp *= 0;
 
     PSR_mask(mini_roi) = 0;
 
     meanStdDev(correlation_mat,mean,stddev,PSR_mask);   //Compute matrix mean and std
+    //meanStdDev(correlation_mat, mean, stddev);
+    //cout << "correlation_mat rows and cols " << correlation_mat.rows << " " << correlation_mat.cols << endl;
+    //cout << "Max, Mean and Std Dev are " << max_val << " " << mean.val[0] << " " << stddev.val[0] << endl;
+    //cout << "Max value Mosse " << max_val << endl;
          
     return (max_val - mean.val[0]) / stddev.val[0];     //Compute PSR
 }
@@ -423,6 +503,10 @@ void Tracker_MOSSE::Update(Point new_location)
 
     UpdateFilter();                         //Update filter
     this->prev_img = this->current_img;     //Update frame (default)
+//    this->prev_img.real_image = (0.95 * this->prev_img.real_image) + 0.05 * this->current_img.real_image;     //Update frame
+////    //this->prev_img.real_image = this->prev_img.real_image * (abs(this->current_img.real_image- this->prev_img.real_image)/255);     //Update frame
+//    this->prev_img.filter_output = (0.95 * this->prev_img.filter_output) + 0.05 * this->current_img.filter_output;     //Update frame
+//    this->prev_img.image_spectrum = (0.95 * this->prev_img.image_spectrum) + 0.05 * this->current_img.image_spectrum;     //Update frame
     UpdateRoi(new_location, false);          //Update ROI position
 
     //imshow("Updating Template", this->prev_img.real_image);
@@ -842,20 +926,119 @@ float Tracker_MOSSE::MOSSE_TRACKER(Mat Template, Point Template_Coord, Mat Frame
 
     int frame_id_mod = frame_id % history_limit;
 
+    //if (this->frame_id == 1)
+    //{
+    //    PSR_original = this->PSR_value; // Choosing PSR of the template frame, gives highest global value
+    //    SetPSR_ratio_low(PSR_original / 3);
+    //    SetPSR_ratio_high(PSR_original / 3);
+
+    //    //cout << "PSR Original is " << PSR_original << endl;
+    //}
+    //else
         PSR_original = PSR_original;
 
+    //cout << "PSR threshold values " << this->PSR_ratio[1] << endl;
+
+    //PSR_ratio = this->PSR_value / PSR_original; // Computing PSR Ratio for Occlusion detection
+
+    //cout << "PSR value " << this->PSR_value << endl;
+
+   /* if (occlusion_flag_ssd == false)
+    this->blended_template = (0.975 * this->blended_template) + (0.025 * this->prev_img.real_image);*/
+
+    //ssd_score = calculate_ssd(this->blended_template, this->current_img.real_image);
+
+    //imshow("Blended Template", this->blended_template);
+    //ssd_score = calculate_ssd(this->prev_img.real_image, this->current_img.real_image);
+    
+    //ssd_score = abs(sum(this->blended_template - this->current_img.real_image)[0]);
+    //Mat SSD_score;
+
+    //matchTemplate(this->blended_template, this->current_img.real_image, SSD_score, TM_CCORR_NORMED, noArray());
+    //minMaxLoc(SSD_score, &minVal, &maxVal, &minLoc, &maxLoc, noArray());
+    //ssd_score = maxVal;
+    //cout << "SSD Blended score " << ssd_score << endl;
+
+   
+    //Canny(this->current_img.real_image, contours, 40, 150);
+    //ssd_score = sum(contours)[0] / 1000;
+    //cout << "Sum of Contours " << ssd_score << endl;
+
+    //if (ssd_score < (this->Canny_score_orig * 0.5))
+    //{
+    //    this->Occlusion_cnt++;
+    //    cout << "Occlusion Counter " << this->Occlusion_cnt << endl;
+    //}
+    //else
+    //    this->Occlusion_cnt = 0;
+
+    
+
+
     if (*Track_status == FOUND) // Save parameters in History list
+    //if (occlusion_flag_ssd == false)
+    //if (this->Occlusion_cnt < 20)
     {
         Hist[frame_id_mod] = Tracker_History(Frame_in, *Track_result, frame_id, tracker_score, *Track_status);
         this->occlusion_flag = false; // occlusion false
     }
     else if ((*Track_status != FOUND) && (this->occlusion_flag == false))
+    //else if ( (occlusion_flag_ssd == true) || (this->occlusion_flag == 0) )
+    //else if ((this->Occlusion_cnt >= 20) && (this->occlusion_flag == 0))
     {
         InitTracker(Hist[frame_id_mod].frame, Hist[frame_id_mod].roi, this->current_ROI.ROI); // Re-Initialize the Tracker with updated Frame and RoI 
         InitHist_Struct(Hist[frame_id_mod].frame, Hist[frame_id_mod].roi, history_limit); // Fill entire structure with copies of Detected frames
         this->occlusion_flag = true; //occlusion true
     }
+    /*else
+    {
+        Rect range;
+        range = { Frame_in.cols / 4, Frame_in.rows / 4, Frame_in.cols / 2, Frame_in.rows / 2 };
+
+        //imshow("Compressed Frame", Frame_in(range));
+       
+        matchTemplate(Frame_in(range), this->prev_img.real_image, Template_match, TM_CCORR_NORMED, noArray());
+        normalize(Template_match, Template_match, 0, 1, NORM_MINMAX, -1, noArray());
+        minMaxLoc(Template_match, &minVal, &maxVal, &minLoc, &maxLoc, noArray());
+        cout << "<max val " << maxVal << endl;
+        this->match_templateVal = maxVal;
+        matchLoc = maxLoc; 
+        //Rect temp_roi = { maxLoc.x, maxLoc.y,(this->prev_img.real_image.cols), (this->prev_img.real_image.rows) };
+        Rect temp_roi = { (maxLoc.x + Frame_in.cols / 4), (maxLoc.y + Frame_in.rows / 4) ,(this->prev_img.real_image.cols), (this->prev_img.real_image.rows) };
+
+        if (maxVal > 0.9)
+        InitTracker(Frame_in_clone, temp_roi, temp_roi);
+
+        //rectangle(Frame_in_clone, matchLoc, Point(matchLoc.x + this->prev_img.real_image.cols, matchLoc.y + this->prev_img.real_image.rows), Scalar::all(0), 2, 8, 0);
+        //imshow("Matching Result", Frame_in_clone);    
+    } */
     
+   /* ssd_score = calculate_ssd(this->current_img.real_image, this->prev_img.real_image);
+    cout << "SSD Score " << ssd_score << endl;*/
+
+    //Occlusion_Test(this->current_img.real_image, this->blended_template);
+    // 
+    //imshow("Test1", Frame_in(this->current_ROI.ROI));
+    //imshow("Test2", Template);
+
+    
+    //Hassan_Grid_Search(Frame_in, *Track_result, this->prev_img.real_image, &hassan_score, &maxima_x, &maxima_y);
+    //tracker_score = hassan_score;
+    //Result_roi = { maxima_x, maxima_y, this->current_ROI.ROI.width, this->current_ROI.ROI.height };
+    //Annotate_Tracker(Frame_in, Result_roi, *Track_status, PSR_ratio);
+
+    //Annotate_Tracker(Frame_in, *Track_result, *Track_status, 0.0); //Use with Hassan Grid Search
+
+    //cout << "Track Result " << *Track_result << endl;
+    //cout << "Hassan Grid Result " << Result_roi << endl;
+    //imshow("Prev Image", this->prev_img.real_image);
+
+    //cout << "Tracker status, result and score " << *Track_status << " " << *Track_result << " " << tracker_score << endl;
+
+
+    //imshow("Blended Template", this->blended_template);
+
+    //cout << "SSD Blended score " << calculate_ssd(this->blended_template, this->current_img.real_image) << endl;
     tracker_score = this->PSR_value;
 
     return tracker_score;
@@ -884,6 +1067,7 @@ void Tracker_MOSSE::InitHist_Struct(Mat frame_init, Rect roi_init, int limit)
         Hist[i].score = 0.0;
     }
 
+    //imshow("Historic Frame 1", Hist[25].frame);
 
 }
 
@@ -901,7 +1085,10 @@ void Tracker_MOSSE::Annotate_Tracker(Mat frame_in, Rect Roi_current, int tracker
         rectangle(frame_annot, Roi_current, Scalar(255, 0, 0), 2, 1, 0);
         drawMarker(frame_annot, centroid, Scalar(255, 0, 0), MARKER_CROSS, 50, 2, 8);
         putText(frame_annot, "PSR Value= " + to_string(this->PSR_value), Point(10, 70), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
-       putText(frame_annot, "SSD Score= " + to_string(SSD_Score), Point(10, 90), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+        //putText(frame_annot, "PSR Ratio= " + to_string(PSR_Ratio), Point(10, 90), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+        putText(frame_annot, "SSD Score= " + to_string(SSD_Score), Point(10, 90), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+        /*if (SSD_Score < 0.975)
+            putText(frame_annot, "Heading towards Occlusion", Point(10, 110), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);*/
     }
 
     else if (tracker_state == LOST)
@@ -915,6 +1102,7 @@ void Tracker_MOSSE::Annotate_Tracker(Mat frame_in, Rect Roi_current, int tracker
         drawMarker(frame_annot, centroid, Scalar(255, 0, 0), MARKER_TILTED_CROSS, 50, 2, 8);
         putText(frame_annot, "Object Occluded", Point(10, 50), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
         putText(frame_annot, "PSR Value= " + to_string(this->PSR_value), Point(10, 70), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+        //putText(frame_annot, "PSR Ratio= " + to_string(PSR_Ratio), Point(10, 90), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
     }
 
 
@@ -924,6 +1112,15 @@ void Tracker_MOSSE::Annotate_Tracker(Mat frame_in, Rect Roi_current, int tracker
     }
 
 
+    //if (occlusion_flag_ssd == true)
+    //{
+    //    drawMarker(frame_annot, centroid, Scalar(255, 0, 0), MARKER_TILTED_CROSS, 50, 2, 8);
+    //    putText(frame_annot, "PSR Value= " + to_string(this->PSR_value), Point(10, 70), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+    //    putText(frame_annot, "Object Occluded SSD", Point(10, 50), FONT_HERSHEY_DUPLEX, 0.5, Scalar(255, 0, 0), 2);
+
+    //}
+
+    //frame_in(Rect(2, 2, 4, 4)) = 0;
     imshow("Updated MOSSE Tracking", frame_annot);
     imshow("MOSSE Template", this->current_img.real_image);
 
@@ -1013,7 +1210,33 @@ float Tracker_MOSSE::Occlusion_Test(Mat curr_template, Mat prev_template)
    lower_h_ssd = calculate_ssd(lower_half_curr, lower_half_prev);
 
    template_score = calculate_ssd(curr_template, prev_template);
-     
+
+   // matchTemplate(left_half_curr, left_half_prev, SSD_score, TM_SQDIFF_NORMED, noArray());
+   // minMaxLoc(SSD_score, &minVal, &maxVal, &minLoc, &maxLoc, noArray());
+
+   // left_h_ssd = minVal;
+
+   ////cout << "Left Half SSD Score = " << maxVal << endl;
+
+   //matchTemplate(right_half_curr, right_half_prev, SSD_score, TM_SQDIFF_NORMED, noArray());
+   //minMaxLoc(SSD_score, &minVal, &maxVal, &minLoc, &maxLoc, noArray());
+
+   //right_h_ssd = minVal;
+
+   //matchTemplate(curr_template, prev_template, SSD_score, TM_SQDIFF_NORMED, noArray());
+   //minMaxLoc(SSD_score, &minVal, &maxVal, &minLoc, &maxLoc, noArray());
+
+   //cout << "Right Half SSD Score = " << maxVal << endl;
+
+   //if ((0.50 * left_h_ssd ) > (right_h_ssd))
+   //    cout << "Stop Template update left" << endl;
+   //if ((0.50 * right_h_ssd) > (left_h_ssd ))
+   //    cout << "Stop Template update right" << endl;
+   //if ((0.40 * left_h_ssd) > (right_h_ssd))
+   //    cout << "Occlusion from left" << endl;
+   //if ((0.40 * right_h_ssd) > (left_h_ssd))
+   //    cout << "Occlusion from right" << endl;
+
    occlusion_flag_ssd = false;
 
    const float occl_thresh = 0.99;
@@ -1043,12 +1266,99 @@ float Tracker_MOSSE::Occlusion_Test(Mat curr_template, Mat prev_template)
        occlusion_flag_ssd = true;
    }
   
+
    cout << "Template SSD Score " << template_score << "Left Half " << left_h_ssd << "Right Half " << right_h_ssd << endl;
+
+
+
 
    return 0.0;
    
+
 }
 
+void Tracker_MOSSE::Hassan_Grid_Search(Mat frame_in, Rect roi, Mat template_frame, float *hassan_score, int *maxima_x, int * maxima_y)
+{
+    int step_size = 8;
+    int x_iterator = -1;
+    int y_iterator = -1;
+    int seed_x = 0;
+    int seed_y = 0;
+    float result_score;
+
+    int coord_x = 0;
+    int coord_y = 0;
+
+    int left = 0, right = 0, top = 0, bottom = 0;
+
+    Mat candidate_image;
+
+    *hassan_score = 0.25;
+    *maxima_x = roi.x; //roi.width / 2;
+    *maxima_y = roi.y;//roi.height / 2;
+    //seed_x = roi.x;
+    //seed_y = roi.y;
+
+    while (step_size >= 2)
+    {
+        step_size /= 2;
+        y_iterator = -1;
+        x_iterator = -1;
+        seed_x = *maxima_x;
+        seed_y = *maxima_y;
+
+
+        while (y_iterator <= 1)
+        {
+            while (x_iterator <= 1)
+            {
+                coord_x = seed_x + (x_iterator * step_size);
+                coord_y = seed_y + (y_iterator * step_size);
+
+                left = coord_x;
+                top = coord_y;
+                right = coord_x + roi.width;
+                bottom = coord_y + roi.height;
+                
+                if (left < 0) { left = 0;				right = roi.width; }
+                if (right > frame_in.cols) { right = frame_in.cols;	left = right - roi.width; }
+                if (top < 0) { top = 0;				bottom = roi.height; }
+                if (bottom > frame_in.rows) { bottom = frame_in.rows;	top = bottom - roi.height; }
+
+                if (left >= 0 && right <= frame_in.cols && top >= 0 && bottom <= frame_in.rows)
+                    candidate_image = frame_in(Rect(left, top, roi.width, roi.height));
+                else
+                    continue;
+
+
+                result_score = calculate_ssd(candidate_image, template_frame);
+
+                if (*hassan_score < result_score)
+                {
+                    *hassan_score = result_score;
+                    *maxima_x = coord_x;
+                    *maxima_y = coord_y;
+                    //					cout << "*Match R* Score=" << result_score << " Coord_X=" << coord_x << "  Coord_Y=" << coord_y << endl;
+                }
+                else
+                {
+                    //					cout << "Result:   Score=" << result_score << " Coord_X=" << coord_x << "  Coord_Y=" << coord_y << endl;
+                }
+
+                x_iterator++;
+
+            }
+
+            y_iterator++;
+            x_iterator = -1;
+
+        }
+
+    }
+
+
+
+}
 /* ------------------------------------ */
 
 
