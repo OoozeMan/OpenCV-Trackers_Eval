@@ -16,11 +16,11 @@
 #include <iomanip>
 #include <iostream>
 #include <cmath>
-#include "cuda_runtime.h"
-#include "opencv2/cudaimgproc.hpp"
-#include "opencv2/cudaarithm.hpp"
-#include <cuda.h>
-#include <cufft.h>
+//#include "cuda_runtime.h"
+//#include "opencv2/cudaimgproc.hpp"
+//#include "opencv2/cudaarithm.hpp"
+//#include <cuda.h>
+//#include <cufft.h>
 
 using namespace std;
 
@@ -788,65 +788,65 @@ void STAPLE_TRACKER::tracker_staple_train(const cv::Mat &im, bool first)
         }
     }
 
-    //Computing FFT via CUDA GPU
-    else if (dft_type == 1)
-    {
-        for (int i = 0; i < xt.channels(); i++)
-        {
-            cv::Mat dimf_cpu;
-            in_im_gpu.upload(xtsplit[i]); //upload Mat to GPU
-            tic = cv::getTickCount();
-            cv::cuda::dft(in_im_gpu, fft_im, in_im_gpu.size(), 0);
-            toc = cv::getTickCount() - tic;
-            //cout << "GPU DFT Computation Ticks " << toc << endl;
-            cv::Mat ifft_im;
-            fft_im.download(ifft_im); //upload GPUMat to CPU
-            xtf.push_back(ifft_im);
+    ////Computing FFT via CUDA GPU
+    //else if (dft_type == 1)
+    //{
+    //    for (int i = 0; i < xt.channels(); i++)
+    //    {
+    //        cv::Mat dimf_cpu;
+    //        in_im_gpu.upload(xtsplit[i]); //upload Mat to GPU
+    //        tic = cv::getTickCount();
+    //        cv::cuda::dft(in_im_gpu, fft_im, in_im_gpu.size(), 0);
+    //        toc = cv::getTickCount() - tic;
+    //        //cout << "GPU DFT Computation Ticks " << toc << endl;
+    //        cv::Mat ifft_im;
+    //        fft_im.download(ifft_im); //upload GPUMat to CPU
+    //        xtf.push_back(ifft_im);
 
-            //cout << "ifft_im " << ifft_im.size() << endl;
+    //        //cout << "ifft_im " << ifft_im.size() << endl;
 
-        }
-    }
+    //    }
+    //}
 
-    //Computing FFT via CUDA GPU (CuFFT)
-    else if (dft_type == 2)
-    {
-        int Nx = xt.rows;
-        int Ny = xt.cols;
-        cv::Mat h_data (Nx, Ny, CV_32FC2);
-        cv::Mat xsplit_d;
+    ////Computing FFT via CUDA GPU (CuFFT)
+    //else if (dft_type == 2)
+    //{
+    //    int Nx = xt.rows;
+    //    int Ny = xt.cols;
+    //    cv::Mat h_data (Nx, Ny, CV_32FC2);
+    //    cv::Mat xsplit_d;
 
-        cufftHandle plan;
-        cufftPlan2d(&plan, Nx, Ny, CUFFT_C2C);
-        cufftComplex* data_cu;
-        cudaMalloc((void**)&data_cu, Nx * Ny * sizeof(cufftComplex));
+    //    cufftHandle plan;
+    //    cufftPlan2d(&plan, Nx, Ny, CUFFT_C2C);
+    //    cufftComplex* data_cu;
+    //    cudaMalloc((void**)&data_cu, Nx * Ny * sizeof(cufftComplex));
 
-        for (int i = 0; i < xt.channels(); i++)
-        {
-            xsplit_d = xtsplit[i];
-            //xsplit_d.convertTo(xsplit_d, CV_64FC2);
-            
-            
+    //    for (int i = 0; i < xt.channels(); i++)
+    //    {
+    //        xsplit_d = xtsplit[i];
+    //        //xsplit_d.convertTo(xsplit_d, CV_64FC2);
+    //        
+    //        
 
-            // Copy host memory to device
-            cudaMemcpy(data_cu, xsplit_d.data, Nx * Ny * sizeof(cufftComplex), cudaMemcpyHostToDevice);
-            // Fill data with your matrix here         
-            tic = cv::getTickCount();
-            cufftExecC2C(plan, data_cu, data_cu, CUFFT_FORWARD);
-            toc = cv::getTickCount() - tic;
-            // data now contains the 2D Fourier transform of the input matrix
-            // You can copy the result back to host and use it.
-            cudaMemcpy(h_data.data, data_cu, Nx * Ny * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
-            toc = cv::getTickCount() - tic;
-            //cout << "GPU CuFT Computation Ticks " << toc << endl;
-            //h_data.convertTo(h_data, CV_32FC2);
-            xtf.push_back(h_data);
+    //        // Copy host memory to device
+    //        cudaMemcpy(data_cu, xsplit_d.data, Nx * Ny * sizeof(cufftComplex), cudaMemcpyHostToDevice);
+    //        // Fill data with your matrix here         
+    //        tic = cv::getTickCount();
+    //        cufftExecC2C(plan, data_cu, data_cu, CUFFT_FORWARD);
+    //        toc = cv::getTickCount() - tic;
+    //        // data now contains the 2D Fourier transform of the input matrix
+    //        // You can copy the result back to host and use it.
+    //        cudaMemcpy(h_data.data, data_cu, Nx * Ny * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+    //        toc = cv::getTickCount() - tic;
+    //        //cout << "GPU CuFT Computation Ticks " << toc << endl;
+    //        //h_data.convertTo(h_data, CV_32FC2);
+    //        xtf.push_back(h_data);
 
-            //cout << "h_data " << h_data.size() << endl;
-        }
-        cufftDestroy(plan);
-        cudaFree(data_cu);
-    }
+    //        //cout << "h_data " << h_data.size() << endl;
+    //    }
+    //    cufftDestroy(plan);
+    //    cudaFree(data_cu);
+    //}
 
     cv::Mat Template_match;
     double minVal = 0.0, maxVal = 0.0;
@@ -1615,109 +1615,109 @@ float STAPLE_TRACKER::STAPLE_tracker(cv::Mat frame_in, cv::Mat template_in, cv::
 }
 
 //compute dft and idft via GPU CUDA or CPU cores
-void STAPLE_TRACKER::DFT_CGPU(cv::Mat img, int flag_dft ) 
-{
-        /////////////////////////////GPU DFT and iDFT of an Input Image//////////////////////////////////
-    if (flag_dft == 0) // use GPU to compute DFT
-    {
-        cv::Mat im2gray;
-        cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
-        // Convert input input to real value type (CV_64F for double precision)
-        cv::Mat im_real;
-        im2gray.convertTo(im_real, CV_32F, 1.0 / 255.0);
-        // Perform The Fourier Transform
-        cv::cuda::GpuMat in_im_gpu, fft_im;
-        in_im_gpu.upload(im_real);
-        cv::cuda::dft(in_im_gpu, fft_im, in_im_gpu.size(), 0);
-        // Performs an inverse Fourier transform
-        cv::cuda::GpuMat ifft_im_gpu;
-        cv::Size dest_size = in_im_gpu.size();
-        int flag = (cv::DFT_SCALE + cv::DFT_REAL_OUTPUT) | cv::DFT_INVERSE;
-        cv::cuda::dft(fft_im, ifft_im_gpu, dest_size, flag);
-        //cv::Mat ifft_im(ifft_im_gpu);
-        cv::Mat ifft_im;
-        ifft_im_gpu.download(ifft_im);
-        ifft_im.convertTo(ifft_im, CV_8U, 255, 0);
-        imshow("Inverse FFT using GPU", ifft_im);
-    }
-
-        /////////////////////////////CPU DFT and iDFT of an Input Image//////////////////////////////////
-    else if (flag_dft == 1)
-    {
-        cv::Mat im2gray;
-        cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
-        // Convert input input to real value type (CV_64F for double precision)
-        cv::Mat im_real, fft_im, ifft_im;
-        im2gray.convertTo(im_real, CV_32F, 1.0 / 255.0);
-        // Perform The Fourier Transform
-        cv::dft(im_real, fft_im);
-        // Performs an inverse Fourier transform
-        int flag = (cv::DFT_SCALE + cv::DFT_REAL_OUTPUT) | cv::DFT_INVERSE;
-        cv::dft(fft_im, ifft_im, flag);
-        ifft_im.convertTo(ifft_im, CV_8U, 255, 0);
-        imshow("Inverse FFT using CPU", ifft_im);
-    }
-
-
-    /////////////////////////////GPU DFT and iDFT (using CuFFT) of an Input Image//////////////////////////////////
-    else if (flag_dft == 2)
-    {
-        cv::Mat im2gray;
-        cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
-
-        // Get the size of the image
-        int N = im2gray.rows;
-        int M = im2gray.cols;
-
-        // Create a complex matrix to store the image in frequency domain
-        cv::Mat img_complex(N, M, CV_32FC2);
-
-        // Copy the image data into the complex matrix
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < M; j++) {
-                img_complex.at<cv::Vec2f>(i, j)[0] = im2gray.at<uchar>(i, j);
-                img_complex.at<cv::Vec2f>(i, j)[1] = 0;
-            }
-        }
-
-        // Create the CUFFT plan
-        cufftHandle plan;
-        cufftPlan2d(&plan, N, M, CUFFT_C2C);
-
-        cufftComplex* img_complex_gpu;
-
-        // Allocate memory on the GPU for img_complex
-        cudaMalloc((void**)&img_complex_gpu, N * M * sizeof(cufftComplex));
-
-        // Copy img_complex to GPU memory
-        cudaMemcpy(img_complex_gpu, img_complex.data, N * M * sizeof(cufftComplex), cudaMemcpyHostToDevice);
-
-        // Perform the forward Fourier transform on the GPU
-        cufftExecC2C(plan, img_complex_gpu, img_complex_gpu, CUFFT_FORWARD);
-
-        // Perform the inverse Fourier transform on the GPU
-        cufftExecC2C(plan, img_complex_gpu, img_complex_gpu, CUFFT_INVERSE);
-
-        // Scale the output on the GPU and copy memory to CPU
-        float scale = 1.0f / (N * M);
-        cudaMemcpy(img_complex.data, img_complex_gpu, N * M * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
-        img_complex *= scale;
-
-        // Create a matrix to store the recovered image
-        cv::Mat img_recovered(N, M, CV_8UC1);
-
-        // Copy the data from the complex matrix to the recovered image matrix
-        for (int i = 0; i < N; i++) {
-            for (int j = 0; j < M; j++) {
-                img_recovered.at<uchar>(i, j) = (uchar)img_complex.at<cv::Vec2f>(i, j)[0];
-            }
-        }
-
-        imshow("Inverse FFT using GPU (CuFFT)", img_recovered);
-        // Free memory on the GPU
-        cudaFree(img_complex_gpu);
-        cufftDestroy(plan);
-    }
-
-
-}
+//void STAPLE_TRACKER::DFT_CGPU(cv::Mat img, int flag_dft ) 
+//{
+//        /////////////////////////////GPU DFT and iDFT of an Input Image//////////////////////////////////
+//    //if (flag_dft == 0) // use GPU to compute DFT
+//    //{
+//    //    cv::Mat im2gray;
+//    //    cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
+//    //    // Convert input input to real value type (CV_64F for double precision)
+//    //    cv::Mat im_real;
+//    //    im2gray.convertTo(im_real, CV_32F, 1.0 / 255.0);
+//    //    // Perform The Fourier Transform
+//    //    //cv::cuda::GpuMat in_im_gpu, fft_im;
+//    //    //in_im_gpu.upload(im_real);
+//    //    //cv::cuda::dft(in_im_gpu, fft_im, in_im_gpu.size(), 0);
+//    //    // Performs an inverse Fourier transform
+//    //    //cv::cuda::GpuMat ifft_im_gpu;
+//    //    //cv::Size dest_size = in_im_gpu.size();
+//    //    int flag = (cv::DFT_SCALE + cv::DFT_REAL_OUTPUT) | cv::DFT_INVERSE;
+//    //    //cv::cuda::dft(fft_im, ifft_im_gpu, dest_size, flag);
+//    //    //cv::Mat ifft_im(ifft_im_gpu);
+//    //    cv::Mat ifft_im;
+//    //    ifft_im_gpu.download(ifft_im);
+//    //    ifft_im.convertTo(ifft_im, CV_8U, 255, 0);
+//    //    imshow("Inverse FFT using GPU", ifft_im);
+//    //}
+//
+//        /////////////////////////////CPU DFT and iDFT of an Input Image//////////////////////////////////
+//    else if (flag_dft == 1)
+//    {
+//        cv::Mat im2gray;
+//        cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
+//        // Convert input input to real value type (CV_64F for double precision)
+//        cv::Mat im_real, fft_im, ifft_im;
+//        im2gray.convertTo(im_real, CV_32F, 1.0 / 255.0);
+//        // Perform The Fourier Transform
+//        cv::dft(im_real, fft_im);
+//        // Performs an inverse Fourier transform
+//        int flag = (cv::DFT_SCALE + cv::DFT_REAL_OUTPUT) | cv::DFT_INVERSE;
+//        cv::dft(fft_im, ifft_im, flag);
+//        ifft_im.convertTo(ifft_im, CV_8U, 255, 0);
+//        imshow("Inverse FFT using CPU", ifft_im);
+//    }
+//
+//
+//    /////////////////////////////GPU DFT and iDFT (using CuFFT) of an Input Image//////////////////////////////////
+//    else if (flag_dft == 2)
+//    {
+//        cv::Mat im2gray;
+//        cv::cvtColor(img, im2gray, cv::COLOR_BGR2GRAY);
+//
+//        // Get the size of the image
+//        int N = im2gray.rows;
+//        int M = im2gray.cols;
+//
+//        // Create a complex matrix to store the image in frequency domain
+//        cv::Mat img_complex(N, M, CV_32FC2);
+//
+//        // Copy the image data into the complex matrix
+//        for (int i = 0; i < N; i++) {
+//            for (int j = 0; j < M; j++) {
+//                img_complex.at<cv::Vec2f>(i, j)[0] = im2gray.at<uchar>(i, j);
+//                img_complex.at<cv::Vec2f>(i, j)[1] = 0;
+//            }
+//        }
+//
+//        // Create the CUFFT plan
+//        cufftHandle plan;
+//        cufftPlan2d(&plan, N, M, CUFFT_C2C);
+//
+//        cufftComplex* img_complex_gpu;
+//
+//        // Allocate memory on the GPU for img_complex
+//        cudaMalloc((void**)&img_complex_gpu, N * M * sizeof(cufftComplex));
+//
+//        // Copy img_complex to GPU memory
+//        cudaMemcpy(img_complex_gpu, img_complex.data, N * M * sizeof(cufftComplex), cudaMemcpyHostToDevice);
+//
+//        // Perform the forward Fourier transform on the GPU
+//        cufftExecC2C(plan, img_complex_gpu, img_complex_gpu, CUFFT_FORWARD);
+//
+//        // Perform the inverse Fourier transform on the GPU
+//        cufftExecC2C(plan, img_complex_gpu, img_complex_gpu, CUFFT_INVERSE);
+//
+//        // Scale the output on the GPU and copy memory to CPU
+//        float scale = 1.0f / (N * M);
+//        cudaMemcpy(img_complex.data, img_complex_gpu, N * M * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+//        img_complex *= scale;
+//
+//        // Create a matrix to store the recovered image
+//        cv::Mat img_recovered(N, M, CV_8UC1);
+//
+//        // Copy the data from the complex matrix to the recovered image matrix
+//        for (int i = 0; i < N; i++) {
+//            for (int j = 0; j < M; j++) {
+//                img_recovered.at<uchar>(i, j) = (uchar)img_complex.at<cv::Vec2f>(i, j)[0];
+//            }
+//        }
+//
+//        imshow("Inverse FFT using GPU (CuFFT)", img_recovered);
+//        // Free memory on the GPU
+//        cudaFree(img_complex_gpu);
+//        cufftDestroy(plan);
+//    }
+//
+//
+//}
